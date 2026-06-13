@@ -3,5 +3,5 @@ export interface Batch {
   name: string
   comment?: string
   createdAt: number // unix seconds
-  count: number // total links in this batch
+  count: number // number of links successfully created in this batch
 }
