@@ -1,15 +1,15 @@
 <script setup lang="ts">
-// Auto-imported as <DashboardLinksTable /> (path: dashboard/links/Table.vue)
-// Self-contained table view. Fetches via useAPI (same auth-aware composable the
-// rest of the dashboard uses) against the existing /api/link/list endpoint.
-
-const config = useRuntimeConfig()
+// Auto-imported as <DashboardLinksTable />
+// Table view of links. Fetches via useAPI against the existing /api/link/list
+// endpoint, and reuses <DashboardLinksActions /> for the per-row action cluster
+// so behaviour matches the card view exactly.
 
 const links = ref<any[]>([])
 const cursor = ref<string | undefined>()
 const listComplete = ref(false)
 const pending = ref(false)
-const copiedSlug = ref<string | null>(null)
+
+const linksStore = useDashboardLinksStore()
 
 async function fetchLinks(reset = false) {
   if (reset) {
@@ -33,29 +33,22 @@ async function fetchLinks(reset = false) {
 
 onMounted(() => fetchLinks(true))
 
+// Keep the table in sync with edits/deletes triggered from the actions menu.
+linksStore.onLinkUpdate(({ link: updatedLink, type }) => {
+  if (type === 'delete') {
+    links.value = links.value.filter(l => l.id !== updatedLink.id)
+  }
+  else if (type === 'edit') {
+    const idx = links.value.findIndex(l => l.id === updatedLink.id)
+    if (idx !== -1)
+      links.value[idx] = { ...links.value[idx], ...updatedLink }
+  }
+})
+
 function formatDate(unix?: number) {
   if (!unix)
     return '—'
   return new Date(unix * 1000).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-function shortUrl(slug: string) {
-  const base = (config.public as any).siteUrl || ''
-  return `${base}/${slug}`
-}
-
-async function copy(slug: string) {
-  try {
-    await navigator.clipboard.writeText(shortUrl(slug))
-    copiedSlug.value = slug
-    setTimeout(() => {
-      if (copiedSlug.value === slug)
-        copiedSlug.value = null
-    }, 1200)
-  }
-  catch {
-    // clipboard not available — silently ignore
-  }
 }
 </script>
 
@@ -70,7 +63,7 @@ async function copy(slug: string) {
             <th class="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Comment</th>
             <th class="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Batch</th>
             <th class="px-4 py-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Created</th>
-            <th class="px-4 py-3 w-10" />
+            <th class="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -106,16 +99,10 @@ async function copy(slug: string) {
             <td class="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
               {{ formatDate(link.createdAt) }}
             </td>
-            <td class="px-3 py-2.5">
-              <button
-                type="button"
-                class="text-muted-foreground hover:text-foreground transition-colors"
-                :title="copiedSlug === link.slug ? 'Copied' : 'Copy short link'"
-                @click="copy(link.slug)"
-              >
-                <svg v-if="copiedSlug === link.slug" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
-              </button>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center justify-end">
+                <DashboardLinksActions :link="link" />
+              </div>
             </td>
           </tr>
 

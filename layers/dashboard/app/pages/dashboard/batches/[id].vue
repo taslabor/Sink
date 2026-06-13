@@ -15,6 +15,20 @@ const pending = ref(false)
 const error = ref('')
 const truncated = ref(false)
 
+const linksStore = useDashboardLinksStore()
+
+// Keep the batch's link list in sync with edits/deletes from the actions menu.
+linksStore.onLinkUpdate(({ link: updatedLink, type }) => {
+  if (type === 'delete') {
+    links.value = links.value.filter(l => l.id !== updatedLink.id)
+  }
+  else if (type === 'edit') {
+    const idx = links.value.findIndex(l => l.id === updatedLink.id)
+    if (idx !== -1)
+      links.value[idx] = { ...links.value[idx], ...updatedLink }
+  }
+})
+
 // Cloudflare KV caps list() at 1000 keys per call, and each returned key
 // triggers a metadata fetch, so we page in small batches (matching Sink's own
 // default). On a Workers Paid plan you can raise PAGE_SIZE toward ~500 for
@@ -148,6 +162,7 @@ function exportCsv() {
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground">Destination</th>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Comment</th>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Created</th>
+                <th class="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -165,6 +180,11 @@ function exportCsv() {
                 </td>
                 <td class="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">{{ link.comment || '—' }}</td>
                 <td class="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">{{ formatDate(link.createdAt) }}</td>
+                <td class="px-4 py-2.5">
+                  <div class="flex items-center justify-end">
+                    <DashboardLinksActions :link="link" />
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
