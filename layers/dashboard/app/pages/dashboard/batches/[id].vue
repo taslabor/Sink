@@ -15,23 +15,37 @@ const pending = ref(false)
 const error = ref('')
 const truncated = ref(false)
 
+// Cloudflare KV caps list() at 1000 keys per call, and each returned key
+// triggers a metadata fetch, so we page in small batches (matching Sink's own
+// default). On a Workers Paid plan you can raise PAGE_SIZE toward ~500 for
+// fewer round trips; 50 is the safe default that works on every plan.
+const PAGE_SIZE = 50
+const MAX_PAGES = 100 // up to ~5000 links scanned before showing the truncation notice
+
 async function load() {
   pending.value = true
   error.value = ''
   try {
+    // Fetch batch metadata first so a link-scan problem can't mask it.
     batch.value = await useAPI<Batch>(`/api/batch/${batchId}`)
+  }
+  catch (e: any) {
+    console.error('[batch detail] failed to load batch record:', e)
+    error.value = e?.statusMessage || e?.data?.statusText || 'Failed to load batch'
+    pending.value = false
+    return
+  }
 
+  try {
     // Collect links belonging to this batch by paging through the existing
-    // /api/link/list endpoint and filtering client-side. Capped to keep the
-    // dashboard responsive; CSV export covers the full set if ever needed.
+    // /api/link/list endpoint and filtering client-side.
     const collected: any[] = []
     let cursor: string | undefined
     let pages = 0
-    const MAX_PAGES = 20 // 20 × 1024 = up to ~20k links scanned
 
     do {
       const data = await useAPI<{ links: any[], cursor?: string, list_complete: boolean }>('/api/link/list', {
-        query: { limit: 1024, ...(cursor ? { cursor } : {}) },
+        query: { limit: PAGE_SIZE, ...(cursor ? { cursor } : {}) },
       })
       for (const l of data.links ?? []) {
         if (l.batchId === batchId)
@@ -46,7 +60,10 @@ async function load() {
     links.value = collected
   }
   catch (e: any) {
-    error.value = e?.statusMessage || e?.data?.statusText || 'Failed to load batch'
+    console.error('[batch detail] failed while listing links:', e)
+    // Batch metadata loaded fine; only the link list failed. Show what we have
+    // plus a soft notice rather than a hard error.
+    truncated.value = true
   }
   finally {
     pending.value = false
