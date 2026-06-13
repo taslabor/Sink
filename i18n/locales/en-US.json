@@ -52,6 +52,8 @@
   },
   "nav": {
     "links": "Links",
+    "batches": "Batches",
+    "bulkCreate": "Bulk Create",
     "analysis": "Analysis",
     "realtime": "Realtime",
     "check": "Check",
