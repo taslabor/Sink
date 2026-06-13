@@ -15,6 +15,12 @@ const pending = ref(false)
 const error = ref('')
 const truncated = ref(false)
 
+// Delete flow
+const confirmingDelete = ref(false)
+const deleting = ref(false)
+const deleteRemoved = ref(0)
+const deleteScanned = ref(0)
+
 const linksStore = useDashboardLinksStore()
 
 // Keep the batch's link list in sync with edits/deletes from the actions menu.
@@ -110,6 +116,41 @@ function exportCsv() {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+async function runDelete(withLinks: boolean) {
+  confirmingDelete.value = false
+  deleting.value = true
+  deleteRemoved.value = 0
+  deleteScanned.value = 0
+  error.value = ''
+
+  try {
+    let cursor: string | undefined
+    let calls = 0
+    const MAX_CALLS = 5000 // hard safety stop
+
+    do {
+      const res = await useAPI<{ done: boolean, cursor?: string, scanned: number, affected: number }>(`/api/batch/${batchId}`, {
+        method: 'DELETE',
+        query: { withLinks: String(withLinks), ...(cursor ? { cursor } : {}) },
+      })
+      deleteRemoved.value += res.affected
+      deleteScanned.value += res.scanned
+      cursor = res.cursor
+      calls++
+      if (res.done || calls >= MAX_CALLS)
+        break
+    } while (cursor)
+
+    // Done — back to the batch list.
+    await navigateTo('/dashboard/batches')
+  }
+  catch (e: any) {
+    console.error('[batch delete] failed:', e)
+    error.value = e?.statusMessage || e?.data?.statusText || 'Failed to delete batch'
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -140,13 +181,69 @@ function exportCsv() {
             </template>
           </div>
         </div>
-        <button
-          type="button"
-          class="text-sm rounded-md border px-3 py-1.5 hover:bg-muted transition-colors shrink-0"
-          @click="exportCsv"
-        >
-          Export CSV
-        </button>
+        <div class="flex gap-2 shrink-0">
+          <button
+            type="button"
+            class="text-sm rounded-md border px-3 py-1.5 hover:bg-muted transition-colors"
+            @click="exportCsv"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            class="text-sm rounded-md border border-destructive/40 text-destructive px-3 py-1.5 hover:bg-destructive/10 transition-colors"
+            @click="confirmingDelete = true"
+          >
+            Delete batch
+          </button>
+        </div>
+      </div>
+
+      <!-- Delete confirmation -->
+      <div v-if="confirmingDelete" class="rounded-lg border border-destructive/30 bg-destructive/5 p-5 space-y-4">
+        <div>
+          <h2 class="font-semibold text-destructive">Delete “{{ batch.name }}”?</h2>
+          <p class="text-sm text-muted-foreground mt-1">
+            Choose what happens to the {{ (truncated ? batch.count : links.length).toLocaleString() }} links in this batch.
+            This can't be undone.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="text-sm rounded-md bg-destructive text-white px-3 py-2 hover:opacity-90 transition-opacity"
+            @click="runDelete(true)"
+          >
+            Delete batch + links
+          </button>
+          <button
+            type="button"
+            class="text-sm rounded-md border px-3 py-2 hover:bg-muted transition-colors"
+            @click="runDelete(false)"
+          >
+            Delete batch, keep links
+          </button>
+          <button
+            type="button"
+            class="text-sm rounded-md px-3 py-2 text-muted-foreground hover:text-foreground transition-colors"
+            @click="confirmingDelete = false"
+          >
+            Cancel
+          </button>
+        </div>
+        <p class="text-xs text-muted-foreground">
+          “Keep links” removes the grouping but leaves every short link working — they
+          become ungrouped links.
+        </p>
+      </div>
+
+      <!-- Delete progress -->
+      <div v-if="deleting" class="rounded-lg border bg-card p-5 space-y-2">
+        <p class="text-sm font-medium">Deleting batch…</p>
+        <p class="text-sm text-muted-foreground">
+          {{ deleteRemoved.toLocaleString() }} link{{ deleteRemoved !== 1 ? 's' : '' }} processed
+          ({{ deleteScanned.toLocaleString() }} scanned). Please keep this tab open until it finishes.
+        </p>
       </div>
 
       <div v-if="truncated" class="rounded-md bg-muted px-4 py-2.5 text-xs text-muted-foreground">
