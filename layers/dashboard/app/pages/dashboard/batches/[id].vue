@@ -3,6 +3,11 @@ import type { Batch } from '#shared/types/batch'
 
 definePageMeta({
   layout: 'dashboard',
+  // Remount when the batch id in the URL changes. Nuxt reuses the same page
+  // component across /dashboard/batches/[id] navigations by default, which would
+  // otherwise leave `batchId` (and the loaded data) stuck on the first batch
+  // opened — causing actions like delete to target the wrong batch.
+  key: route => route.path,
 })
 
 const route = useRoute()
