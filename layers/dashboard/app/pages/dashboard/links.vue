@@ -11,6 +11,16 @@ const viewMode = useCookie<'card' | 'table'>('sink-links-view', { default: () =>
   <main class="space-y-6">
     <Teleport to="#dashboard-header-actions" defer>
       <DashboardLinksEditor />
+
+      <!-- Bulk Create entry point -->
+      <NuxtLink
+        to="/dashboard/bulk-create"
+        class="inline-flex items-center gap-1.5 h-9 rounded-md border bg-background px-3 text-sm font-medium hover:bg-muted transition-colors shrink-0"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18" /><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /></svg>
+        Bulk Create
+      </NuxtLink>
+
       <div
         class="
           flex-1
