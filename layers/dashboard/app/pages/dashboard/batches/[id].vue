@@ -117,7 +117,7 @@ function exportCsv() {
         <div>
           <h1 class="text-2xl font-semibold">{{ batch.name }}</h1>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-muted-foreground">
-            <span>{{ batch.count.toLocaleString() }} links</span>
+            <span>{{ (truncated ? batch.count : links.length).toLocaleString() }} links</span>
             <span>·</span>
             <span>Created {{ formatDate(batch.createdAt) }}</span>
             <template v-if="batch.comment">
