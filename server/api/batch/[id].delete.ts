@@ -54,8 +54,11 @@ export default eventHandler(async (event) => {
   }))
 
   const done = list.list_complete
-  if (done)
+  if (done) {
     await KV.delete(`batch:${id}`)
+    // Remove the membership index alongside the batch record.
+    await deleteBatchIndex(event, id)
+  }
 
   return {
     done,
