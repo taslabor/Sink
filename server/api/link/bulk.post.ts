@@ -1,5 +1,6 @@
 import { LinkSchema } from '#shared/schemas/link'
 import type { Batch } from '#shared/types/batch'
+import type { BatchLinkRef } from '#server/utils/batch-index'
 
 // POST /api/link/bulk
 // Body (create new batch):  { batchName: string, batchComment?: string, links: [...] }
@@ -47,6 +48,7 @@ export default eventHandler(async (event) => {
 
   const batchId = batch.id
   const results: Array<{ url: string, slug?: string, success: boolean, error?: string }> = []
+  const createdRefs: BatchLinkRef[] = []
 
   for (const raw of rawLinks) {
     try {
@@ -65,12 +67,16 @@ export default eventHandler(async (event) => {
       await hashLinkPasswordForCreate(link)
       await putLink(event, link)
 
+      createdRefs.push({ id: link.id, slug: link.slug })
       results.push({ url: link.url, slug: link.slug, success: true })
     }
     catch (err: any) {
       results.push({ url: raw?.url ?? '', slug: raw?.slug, success: false, error: err?.message || 'Invalid link' })
     }
   }
+
+  // Maintain the membership index so batch stats / lookups don't need a scan.
+  await addBatchLinkRefs(event, batchId, createdRefs)
 
   const added = results.filter(r => r.success).length
 
